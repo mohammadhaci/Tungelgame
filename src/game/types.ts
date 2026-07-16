@@ -28,6 +28,9 @@ export type PlayerId = 0 | 1;
 export interface GameConfig {
   /** Hexagon side length in pegs (5 => 9 pegs across the middle row). */
   boardSide: number;
+  /** Exact band length in edges: every band must span this many unit edges
+   *  (bandSpan 3 = a line touching exactly 4 pegs). */
+  bandSpan: number;
   /** Rubber bands each player can place during a match. */
   bandsPerPlayer: number;
   /** How many triangles get a blue (x2) bonus mark. */
@@ -38,6 +41,7 @@ export interface GameConfig {
 
 export const DEFAULT_CONFIG: GameConfig = {
   boardSide: 5,
+  bandSpan: 3,
   bandsPerPlayer: 10,
   blueBonusCount: 5,
   purpleBonusCount: 2,

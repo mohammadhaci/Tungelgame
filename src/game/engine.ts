@@ -38,10 +38,11 @@ export function createMatch(
   };
 }
 
-/** Edge ids the move would newly draw, or null if the move is illegal. */
+/** Edge ids the move would newly draw, or null if the move is illegal.
+ *  A band is only legal when it spans exactly `bandSpan` edges. */
 export function moveNewEdges(match: Match, move: Move): string[] | null {
   const path = pathEdges(match.board, move.from, move.to);
-  if (!path) return null;
+  if (!path || path.length !== match.state.config.bandSpan) return null;
   const fresh = path.filter((id) => !match.state.drawnEdges.has(id));
   return fresh.length > 0 ? fresh : null;
 }
@@ -91,8 +92,9 @@ function advanceTurnOrFinish(match: Match): void {
   const next: PlayerId = state.turn === 0 ? 1 : 0;
   const nextHasBands = state.bandsUsed[next] < state.config.bandsPerPlayer;
   const curHasBands = state.bandsUsed[state.turn] < state.config.bandsPerPlayer;
+  const noMovesLeft = legalMoves(match).length === 0;
 
-  if (allClaimed || (!nextHasBands && !curHasBands)) {
+  if (allClaimed || noMovesLeft || (!nextHasBands && !curHasBands)) {
     state.finished = true;
     state.winner =
       state.scores[0] > state.scores[1]
@@ -112,9 +114,11 @@ export function bandsLeft(match: Match, player: PlayerId): number {
   return match.state.config.bandsPerPlayer - match.state.bandsUsed[player];
 }
 
-/** All legal moves (straight peg-to-peg spans that draw at least one new edge). */
+/** All legal moves: straight spans of exactly `bandSpan` edges that draw
+ *  at least one new edge. */
 export function legalMoves(match: Match): Move[] {
   const { board, state } = match;
+  const span = state.config.bandSpan;
   const moves: Move[] = [];
   const dirs = [
     { q: 1, r: 0 },
@@ -123,16 +127,11 @@ export function legalMoves(match: Match): Move[] {
   ];
   for (const from of board.pegs) {
     for (const d of dirs) {
-      let cur = from;
-      let anyFresh = false;
-      // extend step by step; each prefix is a candidate move
-      for (;;) {
-        const next = { q: cur.q + d.q, r: cur.r + d.r };
-        if (!board.pegSet.has(`${next.q},${next.r}`)) break;
-        const path = pathEdges(board, from, next)!;
-        if (path.some((id) => !state.drawnEdges.has(id))) anyFresh = true;
-        if (anyFresh) moves.push({ from, to: next });
-        cur = next;
+      const to = { q: from.q + d.q * span, r: from.r + d.r * span };
+      const path = pathEdges(board, from, to);
+      if (!path) continue;
+      if (path.some((id) => !state.drawnEdges.has(id))) {
+        moves.push({ from, to });
       }
     }
   }

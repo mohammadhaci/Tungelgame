@@ -49,14 +49,9 @@ export function pickBotMove(
   const moves = legalMoves(match);
   if (moves.length === 0) return null;
 
-  // Occasionally play a random short move to feel human.
+  // Occasionally play a random move to feel human.
   if (random() < MISTAKE_CHANCE[difficulty]) {
-    const short = moves.filter(
-      (m) =>
-        Math.abs(m.to.q - m.from.q) + Math.abs(m.to.r - m.from.r) <= 2,
-    );
-    const pool = short.length > 0 ? short : moves;
-    return pool[Math.floor(random() * pool.length)];
+    return moves[Math.floor(random() * moves.length)];
   }
 
   let best: Move = moves[0];
@@ -64,11 +59,8 @@ export function pickBotMove(
   for (const m of moves) {
     const gain = immediateGain(match, m);
     const risk = giveaway(match, m);
-    const length =
-      Math.max(Math.abs(m.to.q - m.from.q), Math.abs(m.to.r - m.from.r));
-    // Prefer scoring now, avoid handing points over, mildly prefer short moves
-    // (long bands fill the board and create giveaways later).
-    const score = gain * 10 - risk * 6 - length * 0.5 + random() * 0.25;
+    // Prefer scoring now, avoid handing points over.
+    const score = gain * 10 - risk * 6 + random() * 0.25;
     if (score > bestScore) {
       bestScore = score;
       best = m;

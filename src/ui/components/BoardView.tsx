@@ -58,17 +58,14 @@ export default function BoardView({ match, size, interactive, onMove, version }:
     return best;
   };
 
-  /** Pegs reachable from `from` in a straight line with >=1 fresh edge. */
+  /** Pegs exactly `bandSpan` steps away in a straight line, with >=1 fresh edge. */
   const validTargets = (from: Peg): Peg[] => {
+    const span = match.state.config.bandSpan;
     const out: Peg[] = [];
     for (const d of DIRECTIONS) {
-      let cur = from;
-      for (;;) {
-        const next = { q: cur.q + d.q, r: cur.r + d.r };
-        if (!match.board.pegSet.has(pegKey(next))) break;
-        if (moveNewEdges(match, { from, to: next })) out.push(next);
-        cur = next;
-      }
+      const to = { q: from.q + d.q * span, r: from.r + d.r * span };
+      if (!match.board.pegSet.has(pegKey(to))) continue;
+      if (moveNewEdges(match, { from, to })) out.push(to);
     }
     return out;
   };
@@ -92,14 +89,24 @@ export default function BoardView({ match, size, interactive, onMove, version }:
           const cur = dragRef.current;
           if (!cur) return;
           const pt = { x: evt.nativeEvent.locationX, y: evt.nativeEvent.locationY };
+          // Snap by drag direction: once the finger moved far enough from the
+          // start peg, pick the valid target whose direction best matches.
+          const fromPx = toPx(cur.from);
+          const dx = pt.x - fromPx.x;
+          const dy = pt.y - fromPx.y;
+          const dist = Math.hypot(dx, dy);
           let target: Peg | null = null;
-          let bestD = (scale * 0.7) ** 2;
-          for (const cand of targetsRef.current) {
-            const px = toPx(cand);
-            const d = (px.x - pt.x) ** 2 + (px.y - pt.y) ** 2;
-            if (d < bestD) {
-              bestD = d;
-              target = cand;
+          if (dist > scale * 0.8) {
+            let bestCos = Math.cos((35 * Math.PI) / 180);
+            for (const cand of targetsRef.current) {
+              const px = toPx(cand);
+              const tx = px.x - fromPx.x;
+              const ty = px.y - fromPx.y;
+              const cos = (dx * tx + dy * ty) / (dist * Math.hypot(tx, ty));
+              if (cos > bestCos) {
+                bestCos = cos;
+                target = cand;
+              }
             }
           }
           setDrag({ from: cur.from, point: pt, target });

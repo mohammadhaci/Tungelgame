@@ -47,15 +47,23 @@ check('bonus counts respected',
   match.board.triangles.filter((t) => t.bonus === 'purple').length === 2 &&
   match.board.triangles.filter((t) => t.bonus === 'blue').length === 5);
 
-const first = { from: { q: 0, r: 0 }, to: { q: 1, r: 0 } };
+// every band must span exactly 4 pegs (bandSpan = 3 edges)
+let threwShort = false;
+try { applyMove(match, { from: { q: 0, r: 0 }, to: { q: 1, r: 0 } }); } catch { threwShort = true; }
+check('bands shorter than 4 pegs are illegal', threwShort);
+let threwLong = false;
+try { applyMove(match, { from: { q: -2, r: 0 }, to: { q: 2, r: 0 } }); } catch { threwLong = true; }
+check('bands longer than 4 pegs are illegal', threwLong);
+
+const first = { from: { q: -2, r: 0 }, to: { q: 1, r: 0 } }; // covers edge (0,0)-(1,0)
 const res1 = applyMove(match, first);
 check('first move claims nothing', res1.claimed.length === 0);
 check('turn passed to player 1', match.state.turn === 1);
 check('band consumed', bandsLeft(match, 0) === 9);
 
-// complete a triangle: edges (0,0)-(1,0) done; add (0,0)-(0,1) and (1,0)-(0,1)
-applyMove(match, { from: { q: 0, r: 0 }, to: { q: 0, r: 1 } }); // player 1
-const res3 = applyMove(match, { from: { q: 1, r: 0 }, to: { q: 0, r: 1 } }); // player 0 closes it
+// complete triangle {(0,0),(1,0),(0,1)} using three span-3 bands:
+applyMove(match, { from: { q: 0, r: -1 }, to: { q: 0, r: 2 } }); // P1: covers (0,0)-(0,1)
+const res3 = applyMove(match, { from: { q: 2, r: -1 }, to: { q: -1, r: 2 } }); // P0: covers (1,0)-(0,1)
 check('closing third edge claims exactly one triangle', res3.claimed.length === 1);
 check('closer got the points', match.state.scores[0] >= 1 && match.state.scores[1] === 0);
 
@@ -63,9 +71,17 @@ let threw = false;
 try { applyMove(match, first); } catch { threw = true; }
 check('re-drawing an existing band is illegal', threw);
 
-// overlapping longer band that includes drawn edges but adds fresh ones is legal
+// overlapping band that reuses drawn edges but adds fresh ones is legal
 const res4 = applyMove(match, { from: { q: -1, r: 0 }, to: { q: 2, r: 0 } });
 check('overlap move allowed when it adds fresh edges', res4 !== null);
+
+// all legal moves span exactly 3 edges
+const spanOk = legalMoves(match).every((m) => {
+  const dq = Math.abs(m.to.q - m.from.q);
+  const dr = Math.abs(m.to.r - m.from.r);
+  return Math.max(dq, dr) === 3;
+});
+check('all legal moves span exactly 4 pegs', spanOk);
 
 // --- full bot self-play: game must terminate, bands respected ---
 for (const diff of ['easy', 'normal', 'hard'] as const) {
@@ -79,9 +95,10 @@ for (const diff of ['easy', 'normal', 'hard'] as const) {
   check(`self-play (${diff}) finished`, m2.state.finished);
   check(`self-play (${diff}) bands within limit`,
     m2.state.bandsUsed[0] <= 10 && m2.state.bandsUsed[1] <= 10);
-  check(`self-play (${diff}) used all bands or board full`,
+  check(`self-play (${diff}) ended for a valid reason`,
     (m2.state.bandsUsed[0] === 10 && m2.state.bandsUsed[1] === 10) ||
-    m2.state.claimedTriangles.size === m2.board.triangles.length);
+    m2.state.claimedTriangles.size === m2.board.triangles.length ||
+    legalMoves(m2).length === 0);
   const totalPts = [...m2.state.claimedTriangles.keys()].reduce((s, tid) => {
     const t = m2.board.triangles.find((x) => x.id === tid)!;
     return s + (t.bonus === 'purple' ? 3 : t.bonus === 'blue' ? 2 : 1);
@@ -92,7 +109,7 @@ for (const diff of ['easy', 'normal', 'hard'] as const) {
 // legalMoves sanity: fresh match has plenty of moves, all unique
 const m3 = createMatch(DEFAULT_CONFIG, 0, seeded);
 const lm = legalMoves(m3);
-check('fresh match has many legal moves', lm.length > 100);
+check('fresh match has many legal moves', lm.length > 80);
 const keys = new Set(lm.map((m) => `${m.from.q},${m.from.r}>${m.to.q},${m.to.r}`));
 check('legal moves are unique', keys.size === lm.length);
 
