@@ -1,7 +1,8 @@
 // Rock–paper–scissors mini game: the winner makes the first move on the board.
+// Flow: pick -> both fists shake 3x -> hands pop-reveal -> winner announced.
 
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { t } from '../../i18n';
 import { PlayerId } from '../../game/types';
 import { COLORS, RADII } from '../theme';
@@ -21,36 +22,99 @@ function beats(a: Hand, b: Hand): boolean {
   );
 }
 
+type Phase = 'pick' | 'shake' | 'reveal';
+
+const USE_NATIVE = Platform.OS !== 'web';
+
 interface Props {
   opponentName: string;
   onDone: (firstPlayer: PlayerId) => void;
 }
 
 export default function RpsScreen({ opponentName, onDone }: Props) {
+  const [phase, setPhase] = useState<Phase>('pick');
   const [picked, setPicked] = useState<Hand | null>(null);
   const [botHand, setBotHand] = useState<Hand | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  const shake = useRef(new Animated.Value(0)).current; // 0..1 bounce
+  const reveal = useRef(new Animated.Value(0)).current; // 0..1 pop scale
+  const winGlow = useRef(new Animated.Value(0)).current; // winner emphasis
+
+  const playerWonRef = useRef<boolean | null>(null);
+
   const pick = (hand: Hand) => {
-    if (picked) return;
+    if (phase !== 'pick') return;
     const bot = HANDS[Math.floor(Math.random() * 3)].key;
     setPicked(hand);
     setBotHand(bot);
-    if (hand === bot) {
-      setMessage(t('rpsTie'));
-      setTimeout(() => {
-        setPicked(null);
-        setBotHand(null);
-        setMessage(null);
-      }, 1400);
-    } else {
-      const playerWon = beats(hand, bot);
-      setMessage(playerWon ? t('youStart') : t('opponentStarts'));
-      setTimeout(() => onDone(playerWon ? 0 : 1), 1600);
-    }
+    setMessage(null);
+    setPhase('shake');
+    playerWonRef.current = hand === bot ? null : beats(hand, bot);
+
+    shake.setValue(0);
+    reveal.setValue(0);
+    winGlow.setValue(0);
+
+    // three "rock... paper... scissors!" pumps (fresh animation nodes each —
+    // a composite animation object cannot be reused inside one sequence)
+    const pump = () =>
+      Animated.sequence([
+        Animated.timing(shake, {
+          toValue: 1, duration: 210, easing: Easing.out(Easing.quad), useNativeDriver: USE_NATIVE,
+        }),
+        Animated.timing(shake, {
+          toValue: 0, duration: 210, easing: Easing.in(Easing.quad), useNativeDriver: USE_NATIVE,
+        }),
+      ]);
+    Animated.sequence([pump(), pump(), pump()]).start(() => {
+      setPhase('reveal');
+      Animated.spring(reveal, {
+        toValue: 1, friction: 4, tension: 120, useNativeDriver: USE_NATIVE,
+      }).start(() => {
+        const won = playerWonRef.current;
+        if (won === null) {
+          setMessage(t('rpsTie'));
+          setTimeout(() => {
+            setPicked(null);
+            setBotHand(null);
+            setMessage(null);
+            setPhase('pick');
+          }, 1300);
+        } else {
+          setMessage(won ? t('youStart') : t('opponentStarts'));
+          Animated.timing(winGlow, {
+            toValue: 1, duration: 350, useNativeDriver: USE_NATIVE,
+          }).start();
+          setTimeout(() => onDone(won ? 0 : 1), 1700);
+        }
+      });
+    });
   };
 
   const emojiOf = (h: Hand | null) => HANDS.find((x) => x.key === h)?.emoji ?? '❔';
+
+  const bounceUp = shake.interpolate({ inputRange: [0, 1], outputRange: [0, -34] });
+  const bounceDown = shake.interpolate({ inputRange: [0, 1], outputRange: [0, 34] });
+  const tiltTop = shake.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-14deg'] });
+  const tiltBottom = shake.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '14deg'] });
+  const popScale = reveal.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.3, 1.25, 1] });
+
+  const won = playerWonRef.current;
+  const revealDone = phase === 'reveal';
+  // winner grows a touch, loser dims
+  const topScale = winGlow.interpolate({
+    inputRange: [0, 1], outputRange: [1, won === false ? 1.2 : 0.9],
+  });
+  const bottomScale = winGlow.interpolate({
+    inputRange: [0, 1], outputRange: [1, won === true ? 1.2 : 0.9],
+  });
+  const topOpacity = winGlow.interpolate({
+    inputRange: [0, 1], outputRange: [1, won === true ? 0.35 : 1],
+  });
+  const bottomOpacity = winGlow.interpolate({
+    inputRange: [0, 1], outputRange: [1, won === false ? 0.35 : 1],
+  });
 
   return (
     <View style={styles.root}>
@@ -59,18 +123,51 @@ export default function RpsScreen({ opponentName, onDone }: Props) {
       </View>
 
       <Text style={styles.oppName}>{opponentName}</Text>
-      <Text style={styles.bigHand}>{picked ? emojiOf(botHand) : '🤜'}</Text>
 
-      <Text style={styles.message}>{message ?? t('rpsPick')}</Text>
+      {/* opponent hand (top) */}
+      <Animated.Text
+        style={[
+          styles.bigHand,
+          styles.flipped,
+          phase === 'shake' && { transform: [{ scaleY: -1 }, { translateY: bounceDown }, { rotate: tiltTop }] },
+          revealDone && {
+            transform: [{ scaleY: -1 }, { scale: Animated.multiply(popScale, topScale) }],
+            opacity: topOpacity,
+          },
+        ]}
+      >
+        {revealDone ? emojiOf(botHand) : '✊'}
+      </Animated.Text>
 
-      <Text style={styles.bigHand}>{picked ? emojiOf(picked) : '🤛'}</Text>
+      <Text style={styles.message}>
+        {message ?? (phase === 'pick' ? t('rpsPick') : '…')}
+      </Text>
+
+      {/* player hand (bottom) */}
+      <Animated.Text
+        style={[
+          styles.bigHand,
+          phase === 'shake' && { transform: [{ translateY: bounceUp }, { rotate: tiltBottom }] },
+          revealDone && {
+            transform: [{ scale: Animated.multiply(popScale, bottomScale) }],
+            opacity: bottomOpacity,
+          },
+        ]}
+      >
+        {revealDone ? emojiOf(picked) : '✊'}
+      </Animated.Text>
 
       <View style={styles.handsRow}>
         {HANDS.map((h) => (
           <Pressable
             key={h.key}
             onPress={() => pick(h.key)}
-            style={[styles.handBtn, picked === h.key && styles.handBtnActive]}
+            disabled={phase !== 'pick'}
+            style={[
+              styles.handBtn,
+              picked === h.key && styles.handBtnActive,
+              phase !== 'pick' && picked !== h.key && styles.handBtnDisabled,
+            ]}
           >
             <Text style={styles.handEmoji}>{h.emoji}</Text>
             <Text style={styles.handLabel}>{t(h.key)}</Text>
@@ -90,7 +187,8 @@ const styles = StyleSheet.create({
   bannerText: { color: COLORS.white, fontWeight: '900', fontSize: 20 },
   oppName: { marginTop: 24, fontSize: 18, fontWeight: '700', color: COLORS.ink },
   bigHand: { fontSize: 84, marginVertical: 10 },
-  message: { fontSize: 20, fontWeight: '800', color: COLORS.ink, marginVertical: 6 },
+  flipped: { transform: [{ scaleY: -1 }] },
+  message: { fontSize: 20, fontWeight: '800', color: COLORS.ink, marginVertical: 6, minHeight: 26 },
   handsRow: {
     flexDirection: 'row', gap: 18, marginTop: 30,
     backgroundColor: COLORS.purpleBar, borderTopLeftRadius: 30, borderTopRightRadius: 30,
@@ -101,7 +199,8 @@ const styles = StyleSheet.create({
     width: 92, height: 106, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: COLORS.gold,
   },
-  handBtnActive: { backgroundColor: 'rgba(255,255,255,0.45)' },
+  handBtnActive: { backgroundColor: 'rgba(255,255,255,0.45)', transform: [{ scale: 1.08 }] },
+  handBtnDisabled: { opacity: 0.45 },
   handEmoji: { fontSize: 44 },
   handLabel: { color: COLORS.white, fontWeight: '700', marginTop: 4, fontSize: 12 },
 });
