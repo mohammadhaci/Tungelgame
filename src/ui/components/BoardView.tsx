@@ -6,13 +6,15 @@ import { PanResponder, View } from 'react-native';
 import Svg, { Circle, Line, Polygon } from 'react-native-svg';
 import { DIRECTIONS, pegKey, pegToXY } from '../../game/board';
 import { Match, moveNewEdges } from '../../game/engine';
-import { Move, Peg } from '../../game/types';
+import { Move, Peg, PlayerId } from '../../game/types';
 import { COLORS } from '../theme';
 
 interface Props {
   match: Match;
   size: number; // rendered width in px
   interactive: boolean;
+  /** Which engine player the local user controls (their bands are green). */
+  localPlayer: PlayerId;
   onMove: (move: Move) => void;
   /** bumped by the parent after every applied move to force re-render */
   version: number;
@@ -23,7 +25,7 @@ interface XY {
   y: number;
 }
 
-export default function BoardView({ match, size, interactive, onMove, version }: Props) {
+export default function BoardView({ match, size, interactive, localPlayer, onMove, version }: Props) {
   const pad = size * 0.06;
   const scale = (size - 2 * pad) / 8; // x spans [-4, 4]
   const height = Math.ceil(8 * (Math.sqrt(3) / 2) * scale + 2 * pad);
@@ -167,7 +169,13 @@ export default function BoardView({ match, size, interactive, onMove, version }:
             <React.Fragment key={tri.id}>
               <Polygon
                 points={pts.map((p) => `${p.x},${p.y}`).join(' ')}
-                fill={owner === 0 ? COLORS.playerTri : owner === 1 ? COLORS.opponentTri : 'rgba(255,255,255,0.04)'}
+                fill={
+                  owner === undefined
+                    ? 'rgba(255,255,255,0.04)'
+                    : owner === localPlayer
+                      ? COLORS.playerTri
+                      : COLORS.opponentTri
+                }
                 stroke={COLORS.boardTri}
                 strokeWidth={1}
               />
@@ -187,7 +195,7 @@ export default function BoardView({ match, size, interactive, onMove, version }:
         {match.state.placedBands.map((band, i) => {
           const a = toPx(band.move.from);
           const b = toPx(band.move.to);
-          const color = band.player === 0 ? COLORS.player : COLORS.opponent;
+          const color = band.player === localPlayer ? COLORS.player : COLORS.opponent;
           return (
             <React.Fragment key={i}>
               <Line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgba(0,0,0,0.25)"

@@ -1,34 +1,30 @@
-// "Searching for opponent…" spinner, then the VS screen (like the reference:
-// two hex badges on a split pink/blue background).
+// "Searching for opponent…" until matchmaking resolves (real player or bot),
+// then the VS screen (two badges on the split crown background).
 
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, ImageBackground, StyleSheet, Text, View } from 'react-native';
 import { t } from '../../i18n';
-import { Opponent } from '../../services/opponents';
+import { GameSession } from '../../services/multiplayer';
 import { IMG } from '../assets';
 import { COLORS } from '../theme';
 
 interface Props {
-  opponent: Opponent;
+  session: GameSession | null; // null while still searching
   playerFlag: string;
   onDone: () => void;
 }
 
-export default function MatchmakingScreen({ opponent, playerFlag, onDone }: Props) {
-  const [found, setFound] = useState(false);
+export default function MatchmakingScreen({ session, playerFlag, onDone }: Props) {
+  const [showVs, setShowVs] = useState(false);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setFound(true), 1800 + Math.random() * 1200);
-    return () => clearTimeout(t1);
-  }, []);
-
-  useEffect(() => {
-    if (!found) return;
+    if (!session) return;
+    setShowVs(true);
     const t2 = setTimeout(onDone, 2200);
     return () => clearTimeout(t2);
-  }, [found, onDone]);
+  }, [session, onDone]);
 
-  if (!found) {
+  if (!session || !showVs) {
     return (
       <ImageBackground
         source={IMG.bgHome}
@@ -44,7 +40,8 @@ export default function MatchmakingScreen({ opponent, playerFlag, onDone }: Prop
   return (
     <ImageBackground source={IMG.bgVs} resizeMode="cover" style={styles.root}>
       <View style={styles.topHalf}>
-        <HexBadge name={opponent.name} flag={opponent.flag} gold />
+        <HexBadge name={session.opponent.name} flag={session.opponent.flag} gold />
+        {session.online && <Text style={styles.onlineTag}>{t('onlineTag')}</Text>}
       </View>
       <Text style={styles.vs}>{t('vs')}</Text>
       <View style={styles.bottomHalf}>
@@ -86,4 +83,9 @@ const styles = StyleSheet.create({
   },
   badgeName: { color: COLORS.white, fontWeight: '900', fontSize: 18, maxWidth: 160 },
   badgeFlag: { fontSize: 64 },
+  onlineTag: {
+    marginTop: 12, color: COLORS.white, fontWeight: '800',
+    backgroundColor: 'rgba(0,0,0,0.35)', paddingHorizontal: 14, paddingVertical: 5,
+    borderRadius: 14, overflow: 'hidden',
+  },
 });

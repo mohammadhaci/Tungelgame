@@ -9,6 +9,8 @@ export interface Ring {
 }
 
 export interface Profile {
+  /** Display name shown to online opponents. */
+  name: string;
   coins: number;
   rings: Ring[];
   wins: number;
@@ -20,6 +22,7 @@ export interface Profile {
 const KEY = 'tungel.profile.v1';
 
 export const DEFAULT_PROFILE: Profile = {
+  name: '',
   coins: 25,
   rings: [],
   wins: 0,
@@ -31,7 +34,7 @@ export const DEFAULT_PROFILE: Profile = {
 export async function loadProfile(): Promise<Profile> {
   try {
     const raw = await AsyncStorage.getItem(KEY);
-    if (!raw) return { ...DEFAULT_PROFILE };
+    if (!raw) return { ...DEFAULT_PROFILE, name: generatePlayerName() };
     const parsed = { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
     // migrate rings saved by older versions (they had color/gem fields)
     parsed.rings = (parsed.rings ?? []).map((r: Partial<Ring>) => ({
@@ -40,10 +43,15 @@ export async function loadProfile(): Promise<Profile> {
           ? r.variant
           : Math.floor(Math.random() * RING_VARIANTS),
     }));
+    if (!parsed.name) parsed.name = generatePlayerName();
     return parsed;
   } catch {
-    return { ...DEFAULT_PROFILE };
+    return { ...DEFAULT_PROFILE, name: generatePlayerName() };
   }
+}
+
+export function generatePlayerName(): string {
+  return `Player${1000 + Math.floor(Math.random() * 9000)}`;
 }
 
 export async function saveProfile(profile: Profile): Promise<void> {

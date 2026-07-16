@@ -1,0 +1,19 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "queue": {
+      ".read": "auth != null",
+      ".indexOn": ["createdAt"],
+      "$uid": {
+        ".write": "auth != null"
+      }
+    },
+    "matches": {
+      "$mid": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    }
+  }
+}

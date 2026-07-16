@@ -1,12 +1,13 @@
-// The match screen: board, score panels, turn banner, bot turns.
+// The match screen: board, score panels, turn banner. The opponent is either
+// a local bot (session.requestBotMove) or a real player whose moves arrive
+// through session.setMoveListener.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, ImageBackground, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { pickBotMove } from '../../game/bot';
 import { applyMove, bandsLeft, Match } from '../../game/engine';
-import { Move } from '../../game/types';
+import { Move, PlayerId } from '../../game/types';
 import { t } from '../../i18n';
-import { Opponent } from '../../services/opponents';
+import { GameSession } from '../../services/multiplayer';
 import AdBanner from '../components/AdBanner';
 import BoardView from '../components/BoardView';
 import { IMG } from '../assets';
@@ -14,19 +15,21 @@ import { COLORS, RADII } from '../theme';
 
 interface Props {
   match: Match;
-  opponent: Opponent;
+  session: GameSession;
   playerFlag: string;
   onFinish: () => void;
   onQuit: () => void;
 }
 
-export default function GameScreen({ match, opponent, playerFlag, onFinish, onQuit }: Props) {
+export default function GameScreen({ match, session, playerFlag, onFinish, onQuit }: Props) {
   const { width } = useWindowDimensions();
   const [version, setVersion] = useState(0);
   const finishedRef = useRef(false);
 
+  const me = session.localPlayer;
+  const them = (1 - me) as PlayerId;
   const boardSize = Math.min(width - 16, 460);
-  const isPlayerTurn = match.state.turn === 0 && !match.state.finished;
+  const isPlayerTurn = match.state.turn === me && !match.state.finished;
 
   const afterMove = useCallback(() => {
     setVersion((v) => v + 1);
@@ -36,23 +39,40 @@ export default function GameScreen({ match, opponent, playerFlag, onFinish, onQu
     }
   }, [match, onFinish]);
 
-  // Bot plays whenever it's their turn.
+  // Remote opponent moves (online matches).
   useEffect(() => {
-    if (match.state.finished || match.state.turn !== 1) return;
+    if (!session.online) return;
+    session.setMoveListener((move: Move) => {
+      try {
+        if (match.state.turn === them && !match.state.finished) {
+          applyMove(match, move);
+          afterMove();
+        }
+      } catch {
+        // out-of-sync move — ignore; the engine stays authoritative locally
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, match]);
+
+  // Bot plays whenever it's their turn (offline matches).
+  useEffect(() => {
+    if (session.online || match.state.finished || match.state.turn !== them) return;
     const timer = setTimeout(() => {
-      const mv = pickBotMove(match, opponent.difficulty);
+      const mv = session.requestBotMove?.(match);
       if (mv) {
         applyMove(match, mv);
       }
       afterMove();
     }, 900 + Math.random() * 900);
     return () => clearTimeout(timer);
-  }, [version, match, opponent.difficulty, afterMove]);
+  }, [version, match, session, them, afterMove]);
 
   const onPlayerMove = (move: Move) => {
     if (!isPlayerTurn) return;
     try {
       applyMove(match, move);
+      session.sendMove(move);
       afterMove();
     } catch {
       // illegal drag — ignore
@@ -70,13 +90,15 @@ export default function GameScreen({ match, opponent, playerFlag, onFinish, onQu
     <ImageBackground source={IMG.bgWood} resizeMode="cover" style={styles.root}>
       {/* opponent panel */}
       <View style={[styles.panel, styles.topPanel]}>
-        <Text style={styles.flag}>{opponent.flag}</Text>
+        <Text style={styles.flag}>{session.opponent.flag}</Text>
         <View style={{ flex: 1 }}>
-          <Text style={styles.name} numberOfLines={1}>{opponent.name}</Text>
-          <Text style={styles.bands}>🧵 {bandsLeft(match, 1)}</Text>
+          <Text style={styles.name} numberOfLines={1}>
+            {session.opponent.name} {session.online ? '🌐' : ''}
+          </Text>
+          <Text style={styles.bands}>🧵 {bandsLeft(match, them)}</Text>
         </View>
         <View style={[styles.scoreBubble, { backgroundColor: COLORS.opponent }]}>
-          <Text style={styles.scoreText}>{match.state.scores[1]}</Text>
+          <Text style={styles.scoreText}>{match.state.scores[them]}</Text>
         </View>
         <Pressable onPress={confirmQuit} style={styles.quitBtn}>
           <Text style={styles.quitText}>✕</Text>
@@ -94,6 +116,7 @@ export default function GameScreen({ match, opponent, playerFlag, onFinish, onQu
           match={match}
           size={boardSize}
           interactive={isPlayerTurn}
+          localPlayer={me}
           onMove={onPlayerMove}
           version={version}
         />
@@ -104,10 +127,10 @@ export default function GameScreen({ match, opponent, playerFlag, onFinish, onQu
         <Text style={styles.flag}>{playerFlag}</Text>
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{t('you')}</Text>
-          <Text style={styles.bands}>🧵 {bandsLeft(match, 0)} {t('bandsLeft')}</Text>
+          <Text style={styles.bands}>🧵 {bandsLeft(match, me)} {t('bandsLeft')}</Text>
         </View>
         <View style={[styles.scoreBubble, { backgroundColor: COLORS.player }]}>
-          <Text style={styles.scoreText}>{match.state.scores[0]}</Text>
+          <Text style={styles.scoreText}>{match.state.scores[me]}</Text>
         </View>
       </View>
 

@@ -41,6 +41,9 @@ const strings = {
     en: 'Leave the match? You will lose your bet.',
   },
   cancel: { ar: 'إلغاء', en: 'Cancel' },
+  waitingOpponent: { ar: 'بانتظار الخصم…', en: 'Waiting for opponent…' },
+  opponentLeft: { ar: 'خصمك انسحب — ربحت! 🏆', en: 'Opponent left — you win! 🏆' },
+  onlineTag: { ar: 'لاعب حقيقي 🌐', en: 'Real player 🌐' },
 } as const;
 
 export type StringKey = keyof typeof strings;

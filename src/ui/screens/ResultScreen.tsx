@@ -12,6 +12,7 @@ import { COLORS, RADII } from '../theme';
 interface Props {
   won: boolean;
   draw: boolean;
+  forfeit: boolean; // opponent left mid-match
   scores: [number, number];
   baseReward: number; // already applied to profile by App
   ring: Ring | null;
@@ -20,12 +21,14 @@ interface Props {
 }
 
 export default function ResultScreen({
-  won, draw, scores, baseReward, ring, onDoubleApplied, onContinue,
+  won, draw, forfeit, scores, baseReward, ring, onDoubleApplied, onContinue,
 }: Props) {
   const [doubled, setDoubled] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const title = draw ? t('draw') : won ? t('youWin') : t('youLose');
+  const title = forfeit && won
+    ? t('opponentLeft')
+    : draw ? t('draw') : won ? t('youWin') : t('youLose');
   const bg = won ? COLORS.bgBottom : COLORS.bgTop;
 
   const watchAd = async () => {
@@ -81,7 +84,10 @@ export default function ResultScreen({
 const styles = StyleSheet.create({
   root: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18 },
   trophy: { width: 120, height: 130 },
-  title: { fontSize: 44, fontWeight: '900', color: COLORS.white },
+  title: {
+    fontSize: 40, fontWeight: '900', color: COLORS.white,
+    textAlign: 'center', paddingHorizontal: 20,
+  },
   score: { fontSize: 30, fontWeight: '800', color: 'rgba(255,255,255,0.9)' },
   rewardCard: {
     backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: RADII.card,
