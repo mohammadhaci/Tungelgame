@@ -1,7 +1,7 @@
 // The match screen: board, score panels, turn banner, bot turns.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, ImageBackground, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { pickBotMove } from '../../game/bot';
 import { applyMove, bandsLeft, Match } from '../../game/engine';
 import { Move } from '../../game/types';
@@ -9,6 +9,7 @@ import { t } from '../../i18n';
 import { Opponent } from '../../services/opponents';
 import AdBanner from '../components/AdBanner';
 import BoardView from '../components/BoardView';
+import { IMG } from '../assets';
 import { COLORS, RADII } from '../theme';
 
 interface Props {
@@ -66,7 +67,7 @@ export default function GameScreen({ match, opponent, playerFlag, onFinish, onQu
   };
 
   return (
-    <View style={styles.root}>
+    <ImageBackground source={IMG.bgWood} resizeMode="cover" style={styles.root}>
       {/* opponent panel */}
       <View style={[styles.panel, styles.topPanel]}>
         <Text style={styles.flag}>{opponent.flag}</Text>
@@ -111,7 +112,7 @@ export default function GameScreen({ match, opponent, playerFlag, onFinish, onQu
       </View>
 
       <AdBanner />
-    </View>
+    </ImageBackground>
   );
 }
 

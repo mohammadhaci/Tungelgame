@@ -2,16 +2,20 @@
 // Flow: pick -> both fists shake 3x -> hands pop-reveal -> winner announced.
 
 import React, { useRef, useState } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated, Easing, Image, ImageBackground, ImageSourcePropType,
+  Platform, Pressable, StyleSheet, Text, View,
+} from 'react-native';
 import { t } from '../../i18n';
 import { PlayerId } from '../../game/types';
+import { IMG } from '../assets';
 import { COLORS, RADII } from '../theme';
 
 type Hand = 'rock' | 'paper' | 'scissors';
-const HANDS: { key: Hand; emoji: string }[] = [
-  { key: 'rock', emoji: '✊' },
-  { key: 'paper', emoji: '✋' },
-  { key: 'scissors', emoji: '✌️' },
+const HANDS: { key: Hand; img: () => ImageSourcePropType }[] = [
+  { key: 'rock', img: () => IMG.handRock },
+  { key: 'paper', img: () => IMG.handPaper },
+  { key: 'scissors', img: () => IMG.handScissors },
 ];
 
 function beats(a: Hand, b: Hand): boolean {
@@ -92,7 +96,8 @@ export default function RpsScreen({ opponentName, onDone }: Props) {
     });
   };
 
-  const emojiOf = (h: Hand | null) => HANDS.find((x) => x.key === h)?.emoji ?? '❔';
+  const imgOf = (h: Hand | null) =>
+    HANDS.find((x) => x.key === h)?.img() ?? IMG.handRock;
 
   const bounceUp = shake.interpolate({ inputRange: [0, 1], outputRange: [0, -34] });
   const bounceDown = shake.interpolate({ inputRange: [0, 1], outputRange: [0, 34] });
@@ -117,34 +122,36 @@ export default function RpsScreen({ opponentName, onDone }: Props) {
   });
 
   return (
-    <View style={styles.root}>
+    <ImageBackground source={IMG.bgWood} resizeMode="cover" style={styles.root}>
       <View style={styles.banner}>
         <Text style={styles.bannerText}>{t('winnerStarts')}</Text>
       </View>
 
       <Text style={styles.oppName}>{opponentName}</Text>
 
-      {/* opponent hand (top) */}
-      <Animated.Text
+      {/* opponent hand (top, flipped toward the player) */}
+      <Animated.Image
+        source={revealDone ? imgOf(botHand) : IMG.handRock}
+        resizeMode="contain"
         style={[
           styles.bigHand,
-          styles.flipped,
+          { transform: [{ scaleY: -1 }] },
           phase === 'shake' && { transform: [{ scaleY: -1 }, { translateY: bounceDown }, { rotate: tiltTop }] },
           revealDone && {
             transform: [{ scaleY: -1 }, { scale: Animated.multiply(popScale, topScale) }],
             opacity: topOpacity,
           },
         ]}
-      >
-        {revealDone ? emojiOf(botHand) : '✊'}
-      </Animated.Text>
+      />
 
       <Text style={styles.message}>
         {message ?? (phase === 'pick' ? t('rpsPick') : '…')}
       </Text>
 
       {/* player hand (bottom) */}
-      <Animated.Text
+      <Animated.Image
+        source={revealDone ? imgOf(picked) : IMG.handRock}
+        resizeMode="contain"
         style={[
           styles.bigHand,
           phase === 'shake' && { transform: [{ translateY: bounceUp }, { rotate: tiltBottom }] },
@@ -153,9 +160,7 @@ export default function RpsScreen({ opponentName, onDone }: Props) {
             opacity: bottomOpacity,
           },
         ]}
-      >
-        {revealDone ? emojiOf(picked) : '✊'}
-      </Animated.Text>
+      />
 
       <View style={styles.handsRow}>
         {HANDS.map((h) => (
@@ -169,12 +174,12 @@ export default function RpsScreen({ opponentName, onDone }: Props) {
               phase !== 'pick' && picked !== h.key && styles.handBtnDisabled,
             ]}
           >
-            <Text style={styles.handEmoji}>{h.emoji}</Text>
+            <Image source={h.img()} style={styles.handBtnImg} resizeMode="contain" />
             <Text style={styles.handLabel}>{t(h.key)}</Text>
           </Pressable>
         ))}
       </View>
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -185,9 +190,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28, paddingVertical: 12,
   },
   bannerText: { color: COLORS.white, fontWeight: '900', fontSize: 20 },
-  oppName: { marginTop: 24, fontSize: 18, fontWeight: '700', color: COLORS.ink },
-  bigHand: { fontSize: 84, marginVertical: 10 },
-  flipped: { transform: [{ scaleY: -1 }] },
+  oppName: { marginTop: 20, fontSize: 18, fontWeight: '700', color: COLORS.ink },
+  bigHand: { width: 130, height: 130, marginVertical: 8 },
   message: { fontSize: 20, fontWeight: '800', color: COLORS.ink, marginVertical: 6, minHeight: 26 },
   handsRow: {
     flexDirection: 'row', gap: 18, marginTop: 30,
@@ -201,6 +205,6 @@ const styles = StyleSheet.create({
   },
   handBtnActive: { backgroundColor: 'rgba(255,255,255,0.45)', transform: [{ scale: 1.08 }] },
   handBtnDisabled: { opacity: 0.45 },
-  handEmoji: { fontSize: 44 },
+  handBtnImg: { width: 52, height: 52 },
   handLabel: { color: COLORS.white, fontWeight: '700', marginTop: 4, fontSize: 12 },
 });

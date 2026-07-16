@@ -2,9 +2,10 @@
 // two hex badges on a split pink/blue background).
 
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ImageBackground, StyleSheet, Text, View } from 'react-native';
 import { t } from '../../i18n';
 import { Opponent } from '../../services/opponents';
+import { IMG } from '../assets';
 import { COLORS } from '../theme';
 
 interface Props {
@@ -29,15 +30,19 @@ export default function MatchmakingScreen({ opponent, playerFlag, onDone }: Prop
 
   if (!found) {
     return (
-      <View style={[styles.root, { backgroundColor: COLORS.bgBottom, justifyContent: 'center' }]}>
+      <ImageBackground
+        source={IMG.bgHome}
+        resizeMode="cover"
+        style={[styles.root, { backgroundColor: COLORS.bgBottom, justifyContent: 'center' }]}
+      >
         <ActivityIndicator size="large" color={COLORS.white} />
         <Text style={styles.searching}>{t('searching')}</Text>
-      </View>
+      </ImageBackground>
     );
   }
 
   return (
-    <View style={styles.root}>
+    <ImageBackground source={IMG.bgVs} resizeMode="cover" style={styles.root}>
       <View style={styles.topHalf}>
         <HexBadge name={opponent.name} flag={opponent.flag} gold />
       </View>
@@ -45,7 +50,7 @@ export default function MatchmakingScreen({ opponent, playerFlag, onDone }: Prop
       <View style={styles.bottomHalf}>
         <HexBadge name={t('you')} flag={playerFlag} />
       </View>
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -62,11 +67,11 @@ const styles = StyleSheet.create({
   root: { flex: 1, alignItems: 'center' },
   searching: { color: COLORS.white, fontSize: 20, fontWeight: '700', marginTop: 20 },
   topHalf: {
-    width: '100%', flex: 1, backgroundColor: COLORS.bgTop,
+    width: '100%', flex: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   bottomHalf: {
-    width: '100%', flex: 1, backgroundColor: COLORS.bgBottom,
+    width: '100%', flex: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   vs: {

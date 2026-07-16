@@ -4,8 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Lang } from '../i18n';
 
 export interface Ring {
-  color: string;
-  gem: string;
+  /** Index into the ring art set (assets/img/ring-N.png). */
+  variant: number;
 }
 
 export interface Profile {
@@ -32,7 +32,15 @@ export async function loadProfile(): Promise<Profile> {
   try {
     const raw = await AsyncStorage.getItem(KEY);
     if (!raw) return { ...DEFAULT_PROFILE };
-    return { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
+    const parsed = { ...DEFAULT_PROFILE, ...JSON.parse(raw) };
+    // migrate rings saved by older versions (they had color/gem fields)
+    parsed.rings = (parsed.rings ?? []).map((r: Partial<Ring>) => ({
+      variant:
+        typeof r.variant === 'number' && r.variant >= 0 && r.variant < RING_VARIANTS
+          ? r.variant
+          : Math.floor(Math.random() * RING_VARIANTS),
+    }));
+    return parsed;
   } catch {
     return { ...DEFAULT_PROFILE };
   }
@@ -50,12 +58,8 @@ export function levelForXp(xp: number): number {
   return Math.floor(xp / 100) + 1;
 }
 
-const RING_COLORS = ['#e74c3c', '#9b59b6', '#3498db', '#2ecc71', '#f1c40f', '#e67e22', '#ff6fa5'];
-const RING_GEMS = ['💎', '⭐', '🔶', '🟢', '🟣', '🌸'];
+export const RING_VARIANTS = 6;
 
 export function randomRing(): Ring {
-  return {
-    color: RING_COLORS[Math.floor(Math.random() * RING_COLORS.length)],
-    gem: RING_GEMS[Math.floor(Math.random() * RING_GEMS.length)],
-  };
+  return { variant: Math.floor(Math.random() * RING_VARIANTS) };
 }
